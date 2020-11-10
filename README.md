@@ -1,4 +1,4 @@
-# Redis-backed Kafka Streams (2.6.0) State Store
+# Kafka Streams (2.6.0) with a Redis-backed State Store
 By default, Kafka Streams utilizes the RocksDB storage engine for persistent state stores. Something you may have noticed is, the biggest delay occurs when Kafka Streams is in a rebalancing state where it internally rebuilds these state stores from the change-log topics. What this means is the Kafka Streams application won’t be able to service any requests until the rebalancing phase is completed. This isn’t ideal especially in a production environment or from a practicality standpoint. The overall time with this delay seems to correspond with how large your dataset is in your topics, so if you're developing under a continuous integration environment this poses a major challenge since every deployment will require some amount of upfront time for rebalancing.
 
 This is the primary motivation for why I started looking into how to switch over to a custom state store. We can leverage a permanent storage solution like Redis such that in any new deployment or application restart, we can avoid these upfront delays. The Kafka Streams documentation does give you some of the implementation logic, but it’s has a somewhat confusing and largely abstract explanation for it. Anyways, here’s the sample I created using a more recent version of Spring Boot with Java 14.
@@ -91,7 +91,24 @@ You can import the code straight into your preferred IDE or run the sample using
 ```zsh
 $  mvn spring-boot:run
 ```
-After the application runs, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config](http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config) in your web browser to access the Swagger UI. If you used the same sample data from above, you can enter `362` as the `movieId` and it should return something similar like this below:
+
+After the application runs, from the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
+
+```zsh
+$  localhost:6379> keys *
+   1) "rating-averages-stream"
+```
+
+To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible.
+
+```zsh
+$  localhost:6379> xrange rating-averages-stream - +
+   1) 1) "1605043614011-0"
+      2) 1) "362"
+         2) "9.0"
+```
+
+Finally, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config](http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config) in your web browser to access the Swagger UI. If you used the same sample data from above, you can enter `362` as the `movieId` and it should return something similar like this below:
 
 ```json
 {
@@ -100,21 +117,7 @@ After the application runs, navigate to [http://localhost:7001/swagger-ui/index.
 }
 ```
 
-From the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
-
-```zsh
-$  localhost:6379> keys *
-   1) "rating-averages-stream"
-```
-
-To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible. Notice in the controller, you'll find that `store.read(...)` will read from this particular Redis key.
-
-```zsh
-$  localhost:6379> xrange rating-averages-stream - +
-   1) 1) "1605043614011-0"
-      2) 1) "362"
-         2) "9.0"
-```
+You'll find that the `store.read(...)` method in the controller is able to query into this Redis-backed state store.
 
 > Note: keep in mind the various [states](https://kafka.apache.org/25/javadoc/org/apache/kafka/streams/KafkaStreams.State.html) of the client. When a Kafka Streams instance is in `RUNNING` state, it allows for inspection of the stream's metadata using methods like `queryMetadataForKey()`. While it is in `REBALANCING` state, the REST service cannot immediately answer requests until the state stores are fully rebuilt.
 
