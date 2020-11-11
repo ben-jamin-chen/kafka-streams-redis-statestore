@@ -17,7 +17,7 @@ First, install a local instance of Redis (if you haven't already). If you're run
 $  brew install redis
 ```
 
-For Windows, there's a couple of ways to do this, but I generally like to install it using [Docker](https://docs.docker.com/docker-for-windows/install) with the [Redis](https://hub.docker.com/_/redis) image.
+For Windows, there's a couple of ways to do this, but I generally like to deploy and run [Redis](https://hub.docker.com/_/redis) in [Docker](https://docs.docker.com/docker-for-windows/install).
 
 ```pwsh
 >  docker run --name some-redis -p 6379 -d redis
@@ -35,7 +35,7 @@ You can connect to the Redis instance (with default configurations) using the re
 $  redis-cli -h localhost -p 6379
 ```
 
-Next, we need to launch the various Confluent services (i.e. Schema Registry, Broker, ZooKeeper) locally by running the `docker-compose up -d` CLI command where the [docker-compose.yml](https://github.com/bchen04/springboot-kafka-streams-rest-api/blob/master/docker-compose.yml) file is. Typically, you can create a stack file (in the form of a YAML file) to define your applications. You can also run `docker-compose ps` to check the status of the stack. Notice, the endpoints from within the containers on your host machine.
+Next, we need to launch the various Confluent services (i.e. Schema Registry, Broker, ZooKeeper) locally by running the `docker-compose up -d` CLI command where the [docker-compose.yml](https://github.com/bchen04/kafka-streams-redis-statestore/blob/master/docker-compose.yml) file is. Typically, you can create a stack file (in the form of a YAML file) to define your applications. You can also run `docker-compose ps` to check the status of the stack. Notice, the endpoints from within the containers on your host machine.
 
 | Name | From within containers | From host machine |
 | ------------- | ------------- | ------------- |
@@ -96,20 +96,20 @@ $  mvn spring-boot:run
 After the application runs, from the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
 
 ```zsh
-$  localhost:6379> keys *
+   localhost:6379> keys *
    1) "rating-averages-stream"
 ```
 
-To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible.
+To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible. If you used the same input data from above, it should return something similar like this below:
 
 ```zsh
-$  localhost:6379> xrange rating-averages-stream - +
+   localhost:6379> xrange rating-averages-stream - +
    1) 1) "1605043614011-0"
       2) 1) "362"
          2) "9.0"
 ```
 
-Finally, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config](http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config) in your web browser to access the Swagger UI. If you used the same sample data from above, you can enter `362` as the `movieId` and it should return something similar like this below:
+Finally, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config](http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config) in your web browser to access the Swagger UI. You can enter `362` as the `movieId` and it should return the same value from above.
 
 ```json
 {
@@ -120,7 +120,7 @@ Finally, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api
 
 You'll find that the `store.read(...)` method in the controller is able to query into this Redis-backed state store.
 
-> Note: keep in mind the various [states](https://kafka.apache.org/25/javadoc/org/apache/kafka/streams/KafkaStreams.State.html) of the client. When a Kafka Streams instance is in `RUNNING` state, it allows for inspection of the stream's metadata using methods like `queryMetadataForKey()`. While it is in `REBALANCING` state, the REST service cannot immediately answer requests until the state stores are fully rebuilt.
+> Note: keep in mind the various [states](https://kafka.apache.org/26/javadoc/org/apache/kafka/streams/KafkaStreams.State.html) of the client. When a Kafka Streams instance is in `RUNNING` state, it allows for inspection of the stream's metadata using methods like `queryMetadataForKey()`. While it is in `REBALANCING` state, the REST service cannot immediately answer requests until the state stores are fully rebuilt.
 
 ## Troubleshooting
 
