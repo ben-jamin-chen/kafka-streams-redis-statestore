@@ -29,7 +29,7 @@ The easiest way to start the Redis server is just executing the `redis-server` c
 $  redis-server
 ```
 
-You can connect to the Redis instance (with default configurations) using the redis-cli command:
+You can connect to the Redis instance (with default configurations) using the `redis-cli` command:
 
 ```zsh
 $  redis-cli -h localhost -p 6379
@@ -96,17 +96,17 @@ $  mvn spring-boot:run
 After the application runs, from the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
 
 ```zsh
-   localhost:6379> keys *
-   1) "rating-averages-stream"
+localhost:6379> keys *
+1) "rating-averages-stream"
 ```
 
 To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible. If you used the same input data from above, it should return something similar like this below:
 
 ```zsh
-   localhost:6379> xrange rating-averages-stream - +
-   1) 1) "1605043614011-0"
-      2) 1) "362"
-         2) "9.0"
+localhost:6379> xrange rating-averages-stream - +
+1) 1) "1605043614011-0"
+   2) 1) "362"
+      2) "9.0"
 ```
 
 Finally, navigate to [http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config](http://localhost:7001/swagger-ui/index.html?configUrl=/api-docs/swagger-config) in your web browser to access the Swagger UI. You can enter `362` as the `movieId` and it should return the same value from above.
