@@ -23,7 +23,7 @@
 	<properties>
 		<java.version>14</java.version>
 		<avro.version>1.10.0</avro.version>
-		<kafka.version>2.6.0</kafka.version>
+		<kafka.version>5.3.0-ccs</kafka.version>
 		<openapi.version>1.4.4</openapi.version>
 	</properties>
 
