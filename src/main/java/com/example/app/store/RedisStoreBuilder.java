@@ -1,9 +1,7 @@
-package com.kafkastreams.redisstatestore.restapi.config;
+package com.example.app.store;
 
 import org.apache.kafka.streams.state.StoreBuilder;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import java.beans.BeanProperty;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,14 +10,17 @@ public class RedisStoreBuilder implements StoreBuilder<RedisStore<String, String
     private boolean enableCaching = true;
     private final String name;
     private final String streamId;
+    private final String redisHost;
+    private final int redisPort;
 
     private final Map<String, String> logConfig = new HashMap<>();
     private boolean loggingEnabled;
 
-    @Autowired
-    public RedisStoreBuilder(String name, String streamId, boolean loggingEnabled) {
+    public RedisStoreBuilder(String name, String streamId, String redisHost, int redisPort, boolean loggingEnabled) {
         this.name = name;
         this.streamId = streamId;
+        this.redisHost = redisHost;
+        this.redisPort = redisPort;
         this.loggingEnabled = loggingEnabled;
     }
 
@@ -49,7 +50,7 @@ public class RedisStoreBuilder implements StoreBuilder<RedisStore<String, String
 
     @Override
     public RedisStore<String, String> build() {
-        return new RedisStore<>(this.name, this.streamId, this.loggingEnabled);
+        return new RedisStore<>(this.name, this.streamId, this.redisHost, this.redisPort, this.loggingEnabled);
     }
 
     @Override

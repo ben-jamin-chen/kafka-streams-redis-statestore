@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: kafka-streams-redis-state-store-api
+  kafka:
+    bootstrap-servers: localhost:29092
+    streams:
+      application-id: kafka-streams-redis-state-store-api
+      state-dir: data
+      properties:
+        "[application.server]": localhost:7001
+        "[default.key.serde]": org.apache.kafka.common.serialization.Serdes$LongSerde
+        "[default.value.serde]": org.apache.kafka.common.serialization.Serdes$DoubleSerde
+        "[deserialization.exception.handler]": org.apache.kafka.streams.errors.LogAndContinueExceptionHandler
+        "[auto.offset.reset]": earliest
+
+server:
+  port: 7001
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    operationsSorter: method
+    disable-swagger-default-url: true
+
+schema:
+  registry:
+    url: http://localhost:8081
+
+redis:
+  host: localhost
+  port: 6379
+  streamId: rating-averages-stream
+  state:
+    store:
+      name: rating-averages-redis-state-store
+
+rating:
+  topic:
+    name: ratings
+
+average:
+  rating:
+    topic:
+      name: rating-averages
+
+state:
+  store:
+    name: average-ratings

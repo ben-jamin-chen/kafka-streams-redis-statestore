@@ -1,46 +1,45 @@
-package com.kafkastreams.redisstatestore.restapi.config;
+package com.example.app.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.example.app.store.RedisStore;
+import com.example.app.store.RedisStoreBuilder;
 import io.confluent.demo.CountAndSum;
 import io.confluent.demo.Rating;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.streams.*;
-import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler;
-import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.processor.Processor;
-import org.apache.kafka.streams.processor.ProcessorContext;
+import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.kstream.Consumed;
+import org.apache.kafka.streams.kstream.KGroupedStream;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.processor.api.Processor;
+import org.apache.kafka.streams.processor.api.ProcessorContext;
+import org.apache.kafka.streams.processor.api.Record;
 import org.apache.kafka.streams.state.KeyValueStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.annotation.EnableKafkaStreams;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
 import static java.util.Optional.ofNullable;
 import static org.apache.kafka.common.serialization.Serdes.Double;
 import static org.apache.kafka.common.serialization.Serdes.Long;
-import static org.apache.kafka.streams.StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG;
 import static org.apache.kafka.streams.kstream.Grouped.with;
 
 @Configuration
+@EnableKafkaStreams
 public class KafkaStreamsConfig {
+    private static final Logger logger = LoggerFactory.getLogger(KafkaStreamsConfig.class);
+
     @Value("${schema.registry.url}")
     private String schemaRegistryUrl;
-
-    @Value("${app.server.config}")
-    private String appServerConfig;
-
-    @Value("${application.name}")
-    private String appName;
 
     @Value("${rating.topic.name}")
     private String ratingTopicName;
@@ -56,6 +55,12 @@ public class KafkaStreamsConfig {
 
     @Value("${redis.streamId}")
     private String redisStreamId;
+
+    @Value("${redis.host}")
+    private String redisHost;
+
+    @Value("${redis.port}")
+    private int redisPort;
 
     private static SpecificAvroSerde<CountAndSum> getCountAndSumSerde(String schemaRegistryUrl) {
         SpecificAvroSerde<CountAndSum> serde = new SpecificAvroSerde<>();
@@ -77,36 +82,14 @@ public class KafkaStreamsConfig {
     }
 
     @Bean
-    @Primary
-    public KafkaStreams kafkaStreams(KafkaProperties kafkaProperties) {
-        final Properties props = new Properties();
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, appName);
-        props.put(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Long().getClass());
-        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Double().getClass());
-        props.put(StreamsConfig.STATE_DIR_CONFIG, "data");
-        props.put(StreamsConfig.APPLICATION_SERVER_CONFIG, appServerConfig);
-        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, JsonNode.class);
-        props.put(DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, LogAndContinueExceptionHandler.class);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-
-        Topology topology = this.buildTopology(new StreamsBuilder());
-
-        KafkaStreams kafkaStreams = new KafkaStreams(topology, props);
-        kafkaStreams.start();
-
-        return kafkaStreams;
-    }
-
-    private Topology buildTopology(StreamsBuilder builder) {
+    public KStream<Long, Rating> ratingStream(StreamsBuilder builder) {
         RedisStoreBuilder customStoreBuilder =
-                new RedisStoreBuilder(redisStateStoreName, redisStreamId, true);
+                new RedisStoreBuilder(redisStateStoreName, redisStreamId, redisHost, redisPort, true);
 
         builder.addStateStore(customStoreBuilder);
 
         KStream<Long, Rating> ratingStream = builder.stream(ratingTopicName,
-                Consumed.with(Serdes.Long(), getRatingSerde(schemaRegistryUrl)));
+                Consumed.with(Long(), getRatingSerde(schemaRegistryUrl)));
 
         SpecificAvroSerde<CountAndSum> countAndSumSerde = getCountAndSumSerde(schemaRegistryUrl);
 
@@ -137,28 +120,21 @@ public class KafkaStreamsConfig {
         // with the associated Redis state store
         ratingAverage
                 .toStream()
-                .process(() -> new Processor<>() {
-                    RedisStore<byte[], byte[]> stateStore;
+                .process(() -> new Processor<Long, Double, Void, Void>() {
+                    private RedisStore<String, String> stateStore;
 
-                    @SuppressWarnings("unchecked")
                     @Override
-                    public void init(final ProcessorContext context) {
-                        stateStore = (RedisStore<byte[], byte[]>) context.getStateStore(redisStateStoreName);
+                    public void init(final ProcessorContext<Void, Void> context) {
+                        stateStore = context.getStateStore(redisStateStoreName);
                     }
 
                     @Override
-                    public void process(final Long key, final Double value) {
-                        System.out.println("Key: " + key.toString() + " Value: " + value.toString());
-                        stateStore.write(key.toString(), value.toString());
-                    }
-
-                    @Override
-                    public void close() {
+                    public void process(final Record<Long, Double> record) {
+                        logger.info("Key: {} Value: {}", record.key(), record.value());
+                        stateStore.write(record.key().toString(), record.value().toString());
                     }
                 }, redisStateStoreName);
 
-
-        // finish the topology
-        return builder.build();
+        return ratingStream;
     }
 }

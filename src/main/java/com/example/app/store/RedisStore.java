@@ -1,10 +1,9 @@
-package com.kafkastreams.redisstatestore.restapi.config;
+package com.example.app.store;
 
-import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.processor.StateStore;
+import org.apache.kafka.streams.processor.StateStoreContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.StreamEntryID;
 
@@ -15,13 +14,17 @@ public class RedisStore<K, V> implements StateStore, WriteableRedisStore<K, V> {
     private static final Logger logger = LoggerFactory.getLogger(RedisStore.class);
     private final String name;
     private final String streamId;
+    private final String redisHost;
+    private final int redisPort;
     private boolean open = true;
-    private boolean loggingEnabled = false;
+    private boolean loggingEnabled;
     private boolean flushed;
 
-    public RedisStore(String name, String streamId, boolean loggingEnabled) {
+    public RedisStore(String name, String streamId, String redisHost, int redisPort, boolean loggingEnabled) {
         this.name = name;
         this.streamId = streamId;
+        this.redisHost = redisHost;
+        this.redisPort = redisPort;
         this.loggingEnabled = loggingEnabled;
     }
 
@@ -31,7 +34,7 @@ public class RedisStore<K, V> implements StateStore, WriteableRedisStore<K, V> {
     }
 
     @Override
-    public void init(ProcessorContext context, StateStore root) {
+    public void init(StateStoreContext context, StateStore root) {
         if (root != null) {
             // register the store
             context.register(root, (key, value) -> {
@@ -64,7 +67,7 @@ public class RedisStore<K, V> implements StateStore, WriteableRedisStore<K, V> {
 
     @Override
     public void write(String key, String value) {
-        try(Jedis jedis = new Jedis("localhost", 6379)) {
+        try (Jedis jedis = new Jedis(redisHost, redisPort)) {
             Map<String, String> hash = new HashMap<>();
             hash.put(key, value);
             jedis.xadd(this.streamId, StreamEntryID.NEW_ENTRY, hash);
