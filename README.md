@@ -14,25 +14,25 @@ Anyways, this is the primary motivation for switching over to a custom state sto
 First, install a local instance of Redis (if you haven't already). If you're running on Mac OS X, you can use [Homebrew](https://brew.sh) via the command:
 
 ```zsh
-$  brew install redis
+brew install redis
 ```
 
 For Windows, there's a couple of ways to do this, but I generally like to deploy and run [Redis](https://hub.docker.com/_/redis) in [Docker](https://docs.docker.com/docker-for-windows/install).
 
 ```pwsh
->  docker run --name some-redis -p 6379 -d redis
+docker run --name some-redis -p 6379 -d redis
 ```
 
 The easiest way to start the Redis server is just executing the `redis-server` command without any arguments.
 
 ```zsh
-$  redis-server
+redis-server
 ```
 
 You can connect to the Redis instance (with default configurations) using the `redis-cli` command:
 
 ```zsh
-$  redis-cli -h localhost -p 6379
+redis-cli -h localhost -p 6379
 ```
 
 Next, we need to launch the Confluent services (i.e. Schema Registry and a KRaft-mode Kafka broker — no ZooKeeper required anymore) locally by running the `docker compose up -d` CLI command where the [compose.yaml](https://github.com/bchen04/kafka-streams-redis-statestore/blob/master/compose.yaml) file is. Typically, you can create a stack file (in the form of a YAML file) to define your applications. You can also run `docker compose ps` to check the status of the stack. Notice, the endpoints from within the containers on your host machine.
@@ -51,20 +51,20 @@ Notice in the `~/src/main/avro` directory, we have all our Avro schema files for
 So before building and running the project, open a new terminal and run the following commands to generate your input and output topics.
 
 ```zsh
-$  docker compose exec broker kafka-topics --create --bootstrap-server \
-   localhost:9092 --replication-factor 1 --partitions 1 --topic ratings
+docker compose exec broker kafka-topics --create --bootstrap-server \
+localhost:9092 --replication-factor 1 --partitions 1 --topic ratings
 
-$  docker compose exec broker kafka-topics --create --bootstrap-server \
-   localhost:9092 --replication-factor 1 --partitions 1 --topic rating-averages
+docker compose exec broker kafka-topics --create --bootstrap-server \
+localhost:9092 --replication-factor 1 --partitions 1 --topic rating-averages
 ```
 
 Next, we will need to produce some data onto the input topic.
 
 ```zsh
-$  docker exec -i schema-registry /usr/bin/kafka-avro-console-producer --topic ratings --broker-list broker:9092\
-    --property "parse.key=false"\
-    --property "key.separator=:"\
-    --property value.schema="$(< src/main/avro/rating.avsc)"
+docker exec -i schema-registry /usr/bin/kafka-avro-console-producer --topic ratings --broker-list broker:9092\
+ --property "parse.key=false"\
+ --property "key.separator=:"\
+ --property value.schema="$(< src/main/avro/rating.avsc)"
  ```
  
 Paste in the following `json` data when prompted and be sure to press enter twice to actually submit it.
@@ -77,11 +77,11 @@ Paste in the following `json` data when prompted and be sure to press enter twic
 Optionally, you can also see the consumer results on the output topic by running this command on a new terminal window:
 
 ```zsh
-$  docker exec -it broker /usr/bin/kafka-console-consumer --topic rating-averages --bootstrap-server broker:9092 \
-    --property "print.key=true"\
-    --property "key.deserializer=org.apache.kafka.common.serialization.LongDeserializer" \
-    --property "value.deserializer=org.apache.kafka.common.serialization.DoubleDeserializer" \
-    --from-beginning
+docker exec -it broker /usr/bin/kafka-console-consumer --topic rating-averages --bootstrap-server broker:9092 \
+ --property "print.key=true"\
+ --property "key.deserializer=org.apache.kafka.common.serialization.LongDeserializer" \
+ --property "value.deserializer=org.apache.kafka.common.serialization.DoubleDeserializer" \
+ --from-beginning
 ```
 
 ## Build and Run the Sample
@@ -89,19 +89,19 @@ $  docker exec -it broker /usr/bin/kafka-console-consumer --topic rating-average
 You can import the code straight into your preferred IDE or run the sample using the following command (in the root project folder).
 
 ```zsh
-$  ./mvnw spring-boot:run
+./mvnw spring-boot:run
 ```
 
 After the application runs, from the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
 
-```zsh
+```shell
 localhost:6379> keys *
 1) "rating-averages-stream"
 ```
 
 To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible. If you used the same input data from above, it should return something similar like this below:
 
-```zsh
+```shell
 localhost:6379> xrange rating-averages-stream - +
 1) 1) "1605043614011-0"
    2) 1) "362"
