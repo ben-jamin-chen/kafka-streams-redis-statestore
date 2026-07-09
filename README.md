@@ -19,7 +19,7 @@ brew install redis
 
 For Windows, there's a couple of ways to do this, but I generally like to deploy and run [Redis](https://hub.docker.com/_/redis) in [Docker](https://docs.docker.com/docker-for-windows/install).
 
-```pwsh
+```powershell
 docker run --name some-redis -p 6379 -d redis
 ```
 
@@ -35,7 +35,7 @@ You can connect to the Redis instance (with default configurations) using the `r
 redis-cli -h localhost -p 6379
 ```
 
-Next, we need to launch the Confluent services (i.e. Schema Registry and a KRaft-mode Kafka broker — no ZooKeeper required anymore) locally by running the `docker compose up -d` CLI command where the [compose.yaml](https://github.com/bchen04/kafka-streams-redis-statestore/blob/master/compose.yaml) file is. Typically, you can create a stack file (in the form of a YAML file) to define your applications. You can also run `docker compose ps` to check the status of the stack. Notice, the endpoints from within the containers on your host machine.
+Next, we need to launch the Confluent services (i.e. Schema Registry and a KRaft-mode Kafka broker — no ZooKeeper required anymore) locally by running the `docker compose up -d` CLI command where the [compose.yaml](https://github.com/ben-jamin-chen/kafka-streams-redis-statestore/blob/main/compose.yaml) file is. Typically, you can create a stack file (in the form of a YAML file) to define your applications. You can also run `docker compose ps` to check the status of the stack. Notice, the endpoints from within the containers on your host machine.
 
 | Name | From within containers | From host machine |
 | ------------- | ------------- | ------------- |
@@ -94,14 +94,14 @@ You can import the code straight into your preferred IDE or run the sample using
 
 After the application runs, from the `redis-cli`, observe that a new [Redis stream](https://redis.io/topics/streams-intro) got created using the `KEYS` command:
 
-```shell
+```console
 localhost:6379> keys *
 1) "rating-averages-stream"
 ```
 
 To query the stream, you can use the `XRANGE` command where each entry returned is an array of the ID and the list of field-value pairs. The `-` and `+` represent the smallest and the greatest ID possible. If you used the same input data from above, it should return something similar like this below:
 
-```shell
+```console
 localhost:6379> xrange rating-averages-stream - +
 1) 1) "1605043614011-0"
    2) 1) "362"
